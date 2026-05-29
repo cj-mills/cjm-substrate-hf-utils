@@ -104,6 +104,11 @@ def snapshot_download_with_progress(
     
     Returns the local snapshot directory; subsequent `from_pretrained` calls with
     the same `cache_dir` + `local_files_only=True` hit the populated cache.
+    
+    Adoption: the per-file tqdm callback is real progress but NOT a reliable
+    stall-detector floor on its own (it can be sparse / silent on one large file).
+    Wrap BOTH this call and the subsequent `from_pretrained` in a single
+    `with self.heartbeat(...)` block so the substrate always sees the tuple advance.
     """
 ```
 
