@@ -5,4 +5,9 @@ d = { 'settings': { 'branch': 'main',
                 'doc_host': 'https://cj-mills.github.io',
                 'git_url': 'https://github.com/cj-mills/cjm-hf-plugin-utils',
                 'lib_path': 'cjm_hf_plugin_utils'},
-  'syms': {}}
+  'syms': { 'cjm_hf_plugin_utils.cache_config': { 'cjm_hf_plugin_utils.cache_config.HFCacheConfig': ( 'cache_config.html#hfcacheconfig',
+                                                                                                      'cjm_hf_plugin_utils/cache_config.py')},
+            'cjm_hf_plugin_utils.download': { 'cjm_hf_plugin_utils.download.snapshot_download_with_progress': ( 'download.html#snapshot_download_with_progress',
+                                                                                                                'cjm_hf_plugin_utils/download.py')},
+            'cjm_hf_plugin_utils.loading': { 'cjm_hf_plugin_utils.loading.load_pretrained_with_oom': ( 'loading.html#load_pretrained_with_oom',
+                                                                                                       'cjm_hf_plugin_utils/loading.py')}}}

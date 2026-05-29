@@ -8,3 +8,137 @@
 ``` bash
 pip install cjm_hf_plugin_utils
 ```
+
+## Project Structure
+
+    nbs/
+    ├── cache_config.ipynb # A dataclass mixin adding HuggingFace Hub cache / revision / air-gap / security fields to a plugin's config, with `RELOAD_TRIGGER` + JSON-schema metadata pre-set.
+    ├── download.ipynb     # Wrap `huggingface_hub.snapshot_download` so per-file progress flows to the plugin's `report_progress`, defeating the substrate's stall detector during downloads.
+    └── loading.ipynb      # Call `model_class.from_pretrained(...)` and convert CUDA OOM into the substrate's typed `PluginResourceError` for CR-7 reactive retry.
+
+Total: 3 notebooks
+
+## Module Dependencies
+
+``` mermaid
+graph LR
+    cache_config["cache_config<br/>HF cache config mixin"]
+    download["download<br/>Snapshot download with progress"]
+    loading["loading<br/>Pretrained loading with typed OOM"]
+```
+
+No cross-module dependencies detected.
+
+## CLI Reference
+
+No CLI commands found in this project.
+
+## Module Overview
+
+Detailed documentation for each module in the project:
+
+### HF cache config mixin (`cache_config.ipynb`)
+
+> A dataclass mixin adding HuggingFace Hub cache / revision / air-gap /
+> security fields to a plugin’s config, with `RELOAD_TRIGGER` +
+> JSON-schema metadata pre-set.
+
+#### Import
+
+``` python
+from cjm_hf_plugin_utils.cache_config import (
+    HFCacheConfig
+)
+```
+
+#### Classes
+
+``` python
+@dataclass
+class HFCacheConfig:
+    """
+    Mixin adding HuggingFace Hub cache/revision/air-gap/security fields to a plugin config.
+    
+    Compose by inheritance:
+    
+        @dataclass
+        class MyPluginConfig(HFCacheConfig):
+            model_id: str = field(default="org/model", metadata={RELOAD_TRIGGER: "model"})
+            # ... plugin-specific fields (all defaulted) ...
+    
+    Each field is `RELOAD_TRIGGER`-tagged `"model"` (a change invalidates a loaded
+    model) and carries `SCHEMA_TITLE`/`SCHEMA_DESC` so the plugin-config UI renders
+    it. `trust_remote_code` defaults to False and is flagged DANGER in its help text.
+    """
+    
+    cache_dir: Optional[str] = field(...)
+    revision: Optional[str] = field(...)
+    local_files_only: bool = field(...)
+    trust_remote_code: bool = field(...)
+```
+
+### Snapshot download with progress (`download.ipynb`)
+
+> Wrap `huggingface_hub.snapshot_download` so per-file progress flows to
+> the plugin’s `report_progress`, defeating the substrate’s stall
+> detector during downloads.
+
+#### Import
+
+``` python
+from cjm_hf_plugin_utils.download import (
+    snapshot_download_with_progress
+)
+```
+
+#### Functions
+
+``` python
+def snapshot_download_with_progress(
+    """
+    Download an HF Hub snapshot, streaming per-file progress to `report_progress`.
+    
+    When `report_progress` is given, a `tqdm_class` subclass forwards each update
+    as `report_progress(downloaded / total, "downloading <file>")`. When it is
+    None, the default HF Hub progress bars are used unchanged.
+    
+    Returns the local snapshot directory; subsequent `from_pretrained` calls with
+    the same `cache_dir` + `local_files_only=True` hit the populated cache.
+    """
+```
+
+### Pretrained loading with typed OOM (`loading.ipynb`)
+
+> Call `model_class.from_pretrained(...)` and convert CUDA OOM into the
+> substrate’s typed `PluginResourceError` for CR-7 reactive retry.
+
+#### Import
+
+``` python
+from cjm_hf_plugin_utils.loading import (
+    load_pretrained_with_oom
+)
+```
+
+#### Functions
+
+``` python
+def load_pretrained_with_oom(
+    model_class: Type,            # A class exposing `.from_pretrained(repo_id, **kwargs)`
+    repo_id: str,                 # Model repo id or local path passed to from_pretrained
+    *,
+    label: Optional[str] = None,  # OOM-message context (default: f"loading {repo_id!r}")
+    **kwargs,                     # Forwarded verbatim to model_class.from_pretrained
+) -> Any:                         # The loaded model
+    """
+    Call `model_class.from_pretrained(repo_id, **kwargs)`, converting CUDA OOM to a typed error.
+    
+    On `torch.cuda.OutOfMemoryError`, re-raises as `PluginResourceError` (via
+    `cuda_oom_to_plugin_resource_error`) so the substrate's CR-7 reactive-retry
+    path can evict + reload + retry. All other exceptions propagate unchanged.
+    
+    Wrap the call in `self.heartbeat(...)` at the plugin site to cover the silent
+    construction phase; pre-download with `snapshot_download_with_progress` for
+    real download progress.
+    """
+```
