@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
 ]
-dependencies = ['cjm-plugin-system>=0.0.37', 'cjm-torch-plugin-utils>=0.0.1', 'huggingface_hub', 'tqdm']
+dependencies = ['cjm-plugin-system>=0.0.38', 'cjm-torch-plugin-utils>=0.0.2', 'huggingface_hub', 'tqdm']
 
 [project.urls]
 Repository = "https://github.com/cj-mills/cjm-hf-plugin-utils"
