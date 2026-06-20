@@ -3,9 +3,9 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cjm-hf-plugin-utils"
+name = "cjm-substrate-hf-utils"
 dynamic = ["version"]
-description = "Hugging Face Hub helpers for cjm-plugin-system plugins: cache-config mixin, progress-reporting snapshot downloads, and typed-OOM model loading."
+description = "Hugging Face Hub helpers for cjm-substrate capabilities: cache-config mixin, progress-reporting snapshot downloads, and typed-OOM model loading."
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
@@ -15,19 +15,19 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
 ]
-dependencies = ['cjm-plugin-system>=0.0.46', 'cjm-torch-plugin-utils>=0.0.10', 'huggingface_hub', 'tqdm']
+dependencies = ['cjm-substrate>=0.0.47', 'cjm-substrate-torch-utils>=0.0.11', 'huggingface_hub', 'tqdm']
 
 [project.urls]
-Repository = "https://github.com/cj-mills/cjm-hf-plugin-utils"
-Documentation = "https://cj-mills.github.io/cjm-hf-plugin-utils/"
+Repository = "https://github.com/cj-mills/cjm-substrate-hf-utils"
+Documentation = "https://cj-mills.github.io/cjm-substrate-hf-utils/"
 
 [project.entry-points.nbdev]
-cjm_hf_plugin_utils = "cjm_hf_plugin_utils._modidx:d"
+cjm_substrate_hf_utils = "cjm_substrate_hf_utils._modidx:d"
 
 [tool.setuptools.dynamic]
-version = {attr = "cjm_hf_plugin_utils.__version__"}
+version = {attr = "cjm_substrate_hf_utils.__version__"}
 
 [tool.setuptools.packages.find]
-include = ["cjm_hf_plugin_utils"]
+include = ["cjm_substrate_hf_utils"]
 
 [tool.nbdev]
