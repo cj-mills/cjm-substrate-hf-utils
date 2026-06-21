@@ -1,0 +1,92 @@
+[
+  {
+    "objectID": "cache_config.html",
+    "href": "cache_config.html",
+    "title": "HF cache config mixin",
+    "section": "",
+    "text": "Capabilities that load models from the HuggingFace Hub compose HFCacheConfig into their config dataclass by inheritance. All four fields are RELOAD_TRIGGER-tagged (\"model\"): changing any of them invalidates a loaded model, so the substrate’s CR-4 reconfigure path fires _release_model before re-applying config.\nDataclass inheritance places these (defaulted) fields FIRST in __init__ order, so the consuming capability’s own fields must also carry defaults (they generally do).\n\n\nHFCacheConfig\n\ndef HFCacheConfig(\n    cache_dir:Optional=None, revision:Optional=None, local_files_only:bool=False, trust_remote_code:bool=False\n)-&gt;None:\n\nMixin adding HuggingFace Hub cache/revision/air-gap/security fields to a capability config.\nCompose by inheritance:\n@dataclass\nclass MyCapabilityConfig(HFCacheConfig):\n    model_id: str = field(default=\"org/model\", metadata={RELOAD_TRIGGER: \"model\"})\n    # ... capability-specific fields (all defaulted) ...\nEach field is RELOAD_TRIGGER-tagged \"model\" (a change invalidates a loaded model) and carries SCHEMA_TITLE/SCHEMA_DESC so the capability-config UI renders it. trust_remote_code defaults to False and is flagged DANGER in its help text.\nTests.\n\nimport dataclasses\nfrom cjm_substrate.utils.validation import (\n    config_to_dict, dict_to_config, dataclass_to_jsonschema,\n)\n\n\n@dataclasses.dataclass\nclass _DemoConfig(HFCacheConfig):\n    model_id: str = field(default=\"org/m\", metadata={RELOAD_TRIGGER: \"model\", SCHEMA_TITLE: \"Model ID\"})\n\n\n# Mixin fields are present, defaulted, and RELOAD_TRIGGER-tagged.\n_fields = {f.name: f for f in dataclasses.fields(_DemoConfig)}\nfor _n in (\"cache_dir\", \"revision\", \"local_files_only\", \"trust_remote_code\", \"model_id\"):\n    assert _n in _fields, _n\nfor _n in (\"cache_dir\", \"revision\", \"local_files_only\", \"trust_remote_code\"):\n    assert _fields[_n].metadata[RELOAD_TRIGGER] == \"model\"\n\n# Defaults are safe (no cache override, no remote-code execution).\n_c = _DemoConfig()\nassert _c.cache_dir is None and _c.revision is None\nassert _c.local_files_only is False and _c.trust_remote_code is False\n\n# Round-trips through the substrate's config helpers.\n_d = config_to_dict(_DemoConfig(cache_dir=\"/tmp/hf\", trust_remote_code=True))\nassert _d[\"cache_dir\"] == \"/tmp/hf\" and _d[\"trust_remote_code\"] is True\n_c2 = dict_to_config(_DemoConfig, {\"revision\": \"abc123\", \"model_id\": \"org/y\"})\nassert _c2.revision == \"abc123\" and _c2.model_id == \"org/y\"\n\n# JSON-schema picks up the titles for the config UI.\n_schema = dataclass_to_jsonschema(_DemoConfig)\nassert \"cache_dir\" in _schema[\"properties\"]\nassert _schema[\"properties\"][\"cache_dir\"][\"title\"] == \"HF Cache Directory\"",
+    "crumbs": [
+      "HF cache config mixin"
+    ]
+  },
+  {
+    "objectID": "loading.html",
+    "href": "loading.html",
+    "title": "Pretrained loading with typed OOM",
+    "section": "",
+    "text": "load_pretrained_with_oom is the thin convenience wrapper over the from_pretrained convention (transformers, qwen_asr, …): it forwards every kwarg and converts only torch.cuda.OutOfMemoryError into a typed CapabilityResourceError (via cjm-substrate-torch-utils’ primitive). Every other exception propagates unchanged for the substrate’s CR-5 classifier.\nConsumers whose load is a plain constructor (e.g. LavaSR’s LavaEnhance2(path)) should call cuda_oom_to_capability_resource_error directly in a try/except rather than this wrapper.\n\n\nload_pretrained_with_oom\n\ndef load_pretrained_with_oom(\n    model_class:Type, # A class exposing `.from_pretrained(repo_id, **kwargs)`\n    repo_id:str, # Model repo id or local path passed to from_pretrained\n    label:Optional=None, # OOM-message context (default: f\"loading {repo_id!r}\")\n    kwargs:VAR_KEYWORD\n)-&gt;Any: # The loaded model\n\nCall model_class.from_pretrained(repo_id, **kwargs), converting CUDA OOM to a typed error.\nOn torch.cuda.OutOfMemoryError, re-raises as CapabilityResourceError (via cuda_oom_to_capability_resource_error) so the substrate’s CR-7 reactive-retry path can evict + reload + retry. All other exceptions propagate unchanged.\nWrap the call in self.heartbeat(...) at the capability site to cover the silent construction phase; pre-download with snapshot_download_with_progress for real download progress.\nTests. (Model class is mocked — no real model download.)\n\nfrom cjm_substrate.core.errors import CapabilityResourceError\n\n\nclass _FakeModel:\n    @classmethod\n    def from_pretrained(cls, repo_id, **kwargs):\n        return {\"repo_id\": repo_id, \"kwargs\": kwargs}\n\n\n# Success path returns the model and forwards kwargs verbatim.\n_m = load_pretrained_with_oom(_FakeModel, \"org/m\", device_map=\"cuda\", dtype=\"bf16\")\nassert _m[\"repo_id\"] == \"org/m\"\nassert _m[\"kwargs\"][\"device_map\"] == \"cuda\" and _m[\"kwargs\"][\"dtype\"] == \"bf16\"\n\n\nclass _OOMModel:\n    @classmethod\n    def from_pretrained(cls, repo_id, **kwargs):\n        raise torch.cuda.OutOfMemoryError(\"CUDA out of memory\")\n\n\n# CUDA OOM becomes a typed CapabilityResourceError with the cause preserved.\ntry:\n    load_pretrained_with_oom(_OOMModel, \"org/m\")\n    assert False, \"expected CapabilityResourceError\"\nexcept CapabilityResourceError as e:\n    assert e.resource_shortfall is not None\n    assert e.resource_shortfall.resource == \"gpu_vram_mb\"\n    assert isinstance(e.__cause__, torch.cuda.OutOfMemoryError)\n\n\nclass _ValueErrModel:\n    @classmethod\n    def from_pretrained(cls, repo_id, **kwargs):\n        raise ValueError(\"bad config\")\n\n\n# Non-OOM errors propagate unchanged (not converted to CapabilityResourceError).\ntry:\n    load_pretrained_with_oom(_ValueErrModel, \"org/m\")\n    assert False, \"expected ValueError\"\nexcept CapabilityResourceError:\n    assert False, \"ValueError must not convert to CapabilityResourceError\"\nexcept ValueError:\n    pass",
+    "crumbs": [
+      "Pretrained loading with typed OOM"
+    ]
+  },
+  {
+    "objectID": "download.html",
+    "href": "download.html",
+    "title": "Snapshot download with progress",
+    "section": "",
+    "text": "The download phase is where HF Hub capabilities spend their cold-start time, and it is silent enough to trip the substrate’s prefetch stall detector. This helper hooks snapshot_download’s tqdm_class so each progress tick calls report_progress(fraction, \"downloading &lt;file&gt;\"), advancing the (progress, message) tuple the substrate polls.\nWrap BOTH this download AND the subsequent from_pretrained(..., local_files_only=True) in one with self.heartbeat(...) block. The per-file tqdm callback is real progress but not a reliable stall-detector floor on its own (it can be sparse, and one large file reports no advance for a long stretch); the heartbeat is the floor and this helper’s download % layers on top when available.\nReturns the local snapshot directory. LavaSR-style constructors that take a path can pass the returned Path to bypass their internal (progress-less) download.\n\n\nsnapshot_download_with_progress\n\ndef snapshot_download_with_progress(\n    repo_id:str, # HF Hub repo id, e.g. \"mistralai/Voxtral-Mini-3B-2507\"\n    report_progress:Optional=None, # Capability's report_progress(fraction, message)\n    cache_dir:Optional=None, # HF cache override (HFCacheConfig.cache_dir)\n    revision:Optional=None, # Git rev / tag / commit to pin\n    local_files_only:bool=False, # Use cached files only; no network\n    kwargs:VAR_KEYWORD\n)-&gt;Path: # Local path to the downloaded snapshot\n\nDownload an HF Hub snapshot, streaming per-file progress to report_progress.\nWhen report_progress is given, a tqdm_class subclass forwards each update as report_progress(downloaded / total, \"downloading &lt;file&gt;\"). When it is None, the default HF Hub progress bars are used unchanged.\nReturns the local snapshot directory; subsequent from_pretrained calls with the same cache_dir + local_files_only=True hit the populated cache.\nAdoption: the per-file tqdm callback is real progress but NOT a reliable stall-detector floor on its own (it can be sparse / silent on one large file). Wrap BOTH this call and the subsequent from_pretrained in a single with self.heartbeat(...) block so the substrate always sees the tuple advance.\nTests. (Network-free: local_files_only=True on an uncached repo fails fast.)\n\n# local_files_only=True on a not-cached repo fails fast without network, proving\n# our kwargs forward through to snapshot_download.\n_BOGUS = \"cjm-nonexistent-org/definitely-not-a-real-repo-xyz\"\n_raised = False\ntry:\n    snapshot_download_with_progress(_BOGUS, local_files_only=True)\nexcept Exception:\n    _raised = True\nassert _raised, \"expected a local-cache-miss error with local_files_only=True\"\n\n# Passing a report_progress callback is accepted (the tqdm subclass builds cleanly);\n# same fast-fail path, no crash constructing the reporting tqdm.\n_calls = []\ntry:\n    snapshot_download_with_progress(\n        _BOGUS, local_files_only=True,\n        report_progress=lambda f, m: _calls.append((f, m)),\n    )\nexcept Exception:\n    pass",
+    "crumbs": [
+      "Snapshot download with progress"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "cjm-substrate-hf-utils",
+    "section": "",
+    "text": "pip install cjm_substrate_hf_utils",
+    "crumbs": [
+      "cjm-substrate-hf-utils"
+    ]
+  },
+  {
+    "objectID": "index.html#install",
+    "href": "index.html#install",
+    "title": "cjm-substrate-hf-utils",
+    "section": "",
+    "text": "pip install cjm_substrate_hf_utils",
+    "crumbs": [
+      "cjm-substrate-hf-utils"
+    ]
+  },
+  {
+    "objectID": "index.html#project-structure",
+    "href": "index.html#project-structure",
+    "title": "cjm-substrate-hf-utils",
+    "section": "Project Structure",
+    "text": "Project Structure\nnbs/\n├── cache_config.ipynb # A dataclass mixin adding HuggingFace Hub cache / revision / air-gap / security fields to a capability's config, with `RELOAD_TRIGGER` + JSON-schema metadata pre-set.\n├── download.ipynb     # Wrap `huggingface_hub.snapshot_download` so per-file progress flows to the capability's `report_progress`, defeating the substrate's stall detector during downloads.\n└── loading.ipynb      # Call `model_class.from_pretrained(...)` and convert CUDA OOM into the substrate's typed `CapabilityResourceError` for CR-7 reactive retry.\nTotal: 3 notebooks",
+    "crumbs": [
+      "cjm-substrate-hf-utils"
+    ]
+  },
+  {
+    "objectID": "index.html#module-dependencies",
+    "href": "index.html#module-dependencies",
+    "title": "cjm-substrate-hf-utils",
+    "section": "Module Dependencies",
+    "text": "Module Dependencies\ngraph LR\n    cache_config[\"cache_config&lt;br/&gt;HF cache config mixin\"]\n    download[\"download&lt;br/&gt;Snapshot download with progress\"]\n    loading[\"loading&lt;br/&gt;Pretrained loading with typed OOM\"]\n\nNo cross-module dependencies detected.",
+    "crumbs": [
+      "cjm-substrate-hf-utils"
+    ]
+  },
+  {
+    "objectID": "index.html#cli-reference",
+    "href": "index.html#cli-reference",
+    "title": "cjm-substrate-hf-utils",
+    "section": "CLI Reference",
+    "text": "CLI Reference\nNo CLI commands found in this project.",
+    "crumbs": [
+      "cjm-substrate-hf-utils"
+    ]
+  },
+  {
+    "objectID": "index.html#module-overview",
+    "href": "index.html#module-overview",
+    "title": "cjm-substrate-hf-utils",
+    "section": "Module Overview",
+    "text": "Module Overview\nDetailed documentation for each module in the project:\n\nHF cache config mixin (cache_config.ipynb)\n\nA dataclass mixin adding HuggingFace Hub cache / revision / air-gap / security fields to a capability’s config, with RELOAD_TRIGGER + JSON-schema metadata pre-set.\n\n\nImport\nfrom cjm_substrate_hf_utils.cache_config import (\n    HFCacheConfig\n)\n\n\nClasses\n@dataclass\nclass HFCacheConfig:\n    \"\"\"\n    Mixin adding HuggingFace Hub cache/revision/air-gap/security fields to a capability config.\n    \n    Compose by inheritance:\n    \n        @dataclass\n        class MyCapabilityConfig(HFCacheConfig):\n            model_id: str = field(default=\"org/model\", metadata={RELOAD_TRIGGER: \"model\"})\n            # ... capability-specific fields (all defaulted) ...\n    \n    Each field is `RELOAD_TRIGGER`-tagged `\"model\"` (a change invalidates a loaded\n    model) and carries `SCHEMA_TITLE`/`SCHEMA_DESC` so the capability-config UI renders\n    it. `trust_remote_code` defaults to False and is flagged DANGER in its help text.\n    \"\"\"\n    \n    cache_dir: Optional[str] = field(...)\n    revision: Optional[str] = field(...)\n    local_files_only: bool = field(...)\n    trust_remote_code: bool = field(...)\n\n\n\nSnapshot download with progress (download.ipynb)\n\nWrap huggingface_hub.snapshot_download so per-file progress flows to the capability’s report_progress, defeating the substrate’s stall detector during downloads.\n\n\nImport\nfrom cjm_substrate_hf_utils.download import (\n    snapshot_download_with_progress\n)\n\n\nFunctions\ndef snapshot_download_with_progress(\n    \"\"\"\n    Download an HF Hub snapshot, streaming per-file progress to `report_progress`.\n    \n    When `report_progress` is given, a `tqdm_class` subclass forwards each update\n    as `report_progress(downloaded / total, \"downloading &lt;file&gt;\")`. When it is\n    None, the default HF Hub progress bars are used unchanged.\n    \n    Returns the local snapshot directory; subsequent `from_pretrained` calls with\n    the same `cache_dir` + `local_files_only=True` hit the populated cache.\n    \n    Adoption: the per-file tqdm callback is real progress but NOT a reliable\n    stall-detector floor on its own (it can be sparse / silent on one large file).\n    Wrap BOTH this call and the subsequent `from_pretrained` in a single\n    `with self.heartbeat(...)` block so the substrate always sees the tuple advance.\n    \"\"\"\n\n\n\nPretrained loading with typed OOM (loading.ipynb)\n\nCall model_class.from_pretrained(...) and convert CUDA OOM into the substrate’s typed CapabilityResourceError for CR-7 reactive retry.\n\n\nImport\nfrom cjm_substrate_hf_utils.loading import (\n    load_pretrained_with_oom\n)\n\n\nFunctions\ndef load_pretrained_with_oom(\n    model_class: Type,            # A class exposing `.from_pretrained(repo_id, **kwargs)`\n    repo_id: str,                 # Model repo id or local path passed to from_pretrained\n    *,\n    label: Optional[str] = None,  # OOM-message context (default: f\"loading {repo_id!r}\")\n    **kwargs,                     # Forwarded verbatim to model_class.from_pretrained\n) -&gt; Any:                         # The loaded model\n    \"\"\"\n    Call `model_class.from_pretrained(repo_id, **kwargs)`, converting CUDA OOM to a typed error.\n    \n    On `torch.cuda.OutOfMemoryError`, re-raises as `CapabilityResourceError` (via\n    `cuda_oom_to_capability_resource_error`) so the substrate's CR-7 reactive-retry\n    path can evict + reload + retry. All other exceptions propagate unchanged.\n    \n    Wrap the call in `self.heartbeat(...)` at the capability site to cover the silent\n    construction phase; pre-download with `snapshot_download_with_progress` for\n    real download progress.\n    \"\"\"",
+    "crumbs": [
+      "cjm-substrate-hf-utils"
+    ]
+  }
+]
