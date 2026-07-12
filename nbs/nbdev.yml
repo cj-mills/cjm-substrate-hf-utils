@@ -1,9 +1,0 @@
-project:
-  output-dir: _docs
-
-website:
-  title: "cjm-substrate-hf-utils"
-  site-url: "https://cj-mills.github.io/cjm-substrate-hf-utils"
-  description: "Hugging Face Hub helpers for cjm-substrate capabilities: cache-config mixin, progress-reporting snapshot downloads, and typed-OOM model loading."
-  repo-branch: main
-  repo-url: "https://github.com/cj-mills/cjm-substrate-hf-utils"
