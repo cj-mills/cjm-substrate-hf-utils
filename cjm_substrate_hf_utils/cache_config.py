@@ -29,6 +29,7 @@ class HFCacheConfig:
     model) and carries `SCHEMA_TITLE`/`SCHEMA_DESC` so the capability-config UI renders
     it. `trust_remote_code` defaults to False and is flagged DANGER in its help text.
     """
+
     cache_dir: Optional[str] = field(
         default=None,
         metadata={
