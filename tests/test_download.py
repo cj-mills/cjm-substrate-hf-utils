@@ -2,8 +2,8 @@
 
 Projected from the download notebook's test cell at the c25780e8 flip
 (network-free: `local_files_only=True` on an uncached repo fails fast)."""
-import pytest
 
+import pytest
 from cjm_substrate_hf_utils.download import snapshot_download_with_progress
 
 _BOGUS = "cjm-nonexistent-org/definitely-not-a-real-repo-xyz"

@@ -1,12 +1,13 @@
 """Tests for cjm_substrate_hf_utils.cache_config — the HF cache config mixin.
 
 Projected from the cache_config notebook's test cell at the c25780e8 flip."""
+
 import dataclasses
 from dataclasses import field
 
 from cjm_substrate.core.capability import RELOAD_TRIGGER
-from cjm_substrate.utils.validation import (SCHEMA_TITLE, config_to_dict,
-                                            dataclass_to_jsonschema, dict_to_config)
+from cjm_substrate.utils.validation import (config_to_dict, dataclass_to_jsonschema, dict_to_config,
+                                            SCHEMA_TITLE)
 from cjm_substrate_hf_utils.cache_config import HFCacheConfig
 
 
