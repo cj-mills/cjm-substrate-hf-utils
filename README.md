@@ -6,6 +6,7 @@ Hugging Face Hub helpers for cjm-substrate capabilities: cache-config mixin, pro
 
 ## Modules
 
+- **`cjm_substrate_hf_utils.__init__`**
 - **`cjm_substrate_hf_utils.cache_config`** — A dataclass mixin adding HuggingFace Hub cache / revision / air-gap / security fields to a capability's config, with RELOAD_TRIGGER + JSON-schema metadata pre-set.
 - **`cjm_substrate_hf_utils.download`** — Wrap huggingface_hub.snapshot_download so per-file progress flows to the capability's report_progress, defeating the substrate's stall detector during downloads.
 - **`cjm_substrate_hf_utils.loading`** — Call model_class.from_pretrained(...) and convert CUDA OOM into the substrate's typed CapabilityResourceError for CR-7 reactive retry.
@@ -23,3 +24,8 @@ Hugging Face Hub helpers for cjm-substrate capabilities: cache-config mixin, pro
 ### `cjm_substrate_hf_utils.loading`
 
 - `load_pretrained_with_oom` _function_ — Call `model_class.from_pretrained(repo_id, **kwargs)`, converting CUDA OOM to a typed error.
+
+## Dependencies
+
+**Depends on:** `cjm-substrate`, `cjm-substrate-torch-utils`, `huggingface-hub`, `tqdm`
+**Used by:** `cjm-capability-qwen3-forced-aligner`, `cjm-capability-voxtral-hf`
